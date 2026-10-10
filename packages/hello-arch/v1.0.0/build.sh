@@ -17,5 +17,5 @@ cd "$(dirname "$source_file")"
 cc -O2 -Wall -Wextra -o hello-arch main.c
 
 # Stage it for Forge to install.
-install -Dm755 hello \
-    "$FORGE_STAGE_DIR$FORGE_PREFIX/bin/hello"
+install -Dm755 hello-arch \
+    "$FORGE_STAGE_DIR$FORGE_PREFIX/bin/hello-arch"
