@@ -5,7 +5,7 @@ description = "A minimal example package"
 license = "MIT"
 
 [source]
-url = "https://github.com/ItzSevrus/ArchTools/releases/download/hello-arch-v1.0.0/hello-arch-1.0.0.tar.gz"
+url = "https://github.com/ItzSevrus/ArchTools/releases/download/hello-arch-v1.0.0/hello-arch-v1.0.0.tar.gz"
 checksum = "sha256:619c755c25fdcc0ebd0f8f164a73d80c7727628406c652375fa830571e6bd565"
 
 [build]
