@@ -14,7 +14,7 @@ fi
 
 # Compile the source into an executable named hello.
 cd "$(dirname "$source_file")"
-cc -O2 -Wall -Wextra -o hello main.c
+cc -O2 -Wall -Wextra -o hello-arch main.c
 
 # Stage it for Forge to install.
 install -Dm755 hello \
