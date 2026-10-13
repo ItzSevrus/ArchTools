@@ -10,11 +10,11 @@ APP="wallshift"
 log() { printf '[%s] %s\n' "$APP" "$*"; }
 die() { printf '[%s] ERROR: %s\n' "$APP" "$*" >&2; exit 1; }
 
-# Source layout validation.
+# Validate source files.
 [[ -f "$ROOT/CMakeLists.txt" ]] || die "CMakeLists.txt is missing."
 [[ -f "$ROOT/src/main.cpp" ]] || die "src/main.cpp is missing."
-[[ -f "$ROOT/modules/wallshift.lua" ]] || die "modules/wallshift.lua is missing."
-
+LUA_MODULE="$ROOT/modules/wallshift.lua"
+[[ -f "$LUA_MODULE" ]] || die "modules/wallshift.lua is missing."
 WALLPAPER_DIR="$ROOT/wallpapers"
 [[ -d "$WALLPAPER_DIR" ]] || die "wallpapers/ directory is missing."
 
@@ -22,6 +22,7 @@ WALLPAPER_DIR="$ROOT/wallpapers"
 command -v pacman >/dev/null 2>&1 ||
     die "This build script requires Arch Linux and pacman."
 
+# Check build/runtime dependencies, offering installation if needed.
 packages=(base-devel cmake awww)
 missing=()
 for package in "${packages[@]}"; do
@@ -31,16 +32,16 @@ done
 if ((${#missing[@]})); then
     printf '\nWallshift requires these additional Arch Linux packages:\n'
     printf '  - %s\n' "${missing[@]}"
-    printf '\n'
+    printf '\nPacman will install these packages and any required dependencies.\n'
+    printf 'This requires sudo privileges and may download packages.\n\n'
     read -r -p "Proceed with sudo pacman installation? [y/N] " answer
     case "$answer" in
         y|Y|yes|YES|Yes)
+            log "Installing approved dependencies..."
             sudo pacman -S --needed -- "${missing[@]}" ||
                 die "Dependency installation failed."
             ;;
-        *)
-            die "Dependency installation declined. Nothing was installed."
-            ;;
+        *) die "Dependency installation declined. Nothing was installed." ;;
     esac
 else
     log "All declared system dependencies are installed."
@@ -53,7 +54,8 @@ done
 
 # Build in a temporary directory so the source tree stays clean.
 BUILD_DIR="$(mktemp -d "${TMPDIR:-/tmp}/wallshift-build.XXXXXX")"
-trap 'rm -rf -- "$BUILD_DIR"' EXIT
+cleanup() { rm -rf -- "$BUILD_DIR"; }
+trap cleanup EXIT
 
 log "Configuring CMake..."
 cmake -S "$ROOT" -B "$BUILD_DIR" \
@@ -63,37 +65,29 @@ cmake -S "$ROOT" -B "$BUILD_DIR" \
 log "Compiling Wallshift..."
 cmake --build "$BUILD_DIR" --parallel
 
-# Stage the compiled application under the Forge stage root.
-log "Staging executable and package data..."
+# Stage the executable using CMake, just like Snapix. Do not install the
+# executable directly into ~/.local/bin here: Forge owns the final commit.
+log "Staging application..."
 DESTDIR="$FORGE_STAGE_DIR" cmake --install "$BUILD_DIR"
 
-# Stage Lua module and sample wallpapers as package-owned data.
+# Stage the Lua module and bundled wallpapers as package-owned data.
 STAGED_DATA="$FORGE_STAGE_DIR$FORGE_PREFIX/share/wallshift"
-install -Dm644 "$ROOT/modules/wallshift.lua" \
-    "$STAGED_DATA/modules/wallshift.lua"
+install -Dm644 "$LUA_MODULE" "$STAGED_DATA/modules/wallshift.lua"
 
 mkdir -p "$STAGED_DATA/wallpapers"
 while IFS= read -r -d '' image_file; do
-    install -m644 "$image_file" "$STAGED_DATA/wallpapers/$(basename "$image_file")"
+    install -m644 "$image_file" "$STAGED_DATA/wallpapers/$(basename -- "$image_file")"
 done < <(find "$WALLPAPER_DIR" -maxdepth 1 -type f \
     \( -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' \
        -o -iname '*.webp' -o -iname '*.bmp' -o -iname '*.gif' \
        -o -iname '*.tif' -o -iname '*.tiff' -o -iname '*.avif' \) \
     -print0)
 
-# Stage the executable in the conventional user-local bin location within the
-# package stage, as requested. The live install below copies it to ~/.local/bin.
-STAGED_LOCAL_BIN="$FORGE_STAGE_DIR$HOME/.local/bin"
-mkdir -p "$STAGED_LOCAL_BIN"
-install -m755 "$BUILD_DIR/wallshift" "$STAGED_LOCAL_BIN/wallshift"
-
 log "Forge staging completed."
-log "Staged executable: $STAGED_LOCAL_BIN/wallshift"
 log "Staged Lua module: $STAGED_DATA/modules/wallshift.lua"
 log "Staged bundled wallpapers: $STAGED_DATA/wallpapers"
 
-# Install into the live user's Hyprland setup, matching this package's requested
-# behavior. Set WALLSHIFT_CONFIGURE_HYPRLAND=0 to build/stage without live changes.
+# Match Snapix's behavior: allow staging/building without changing live config.
 if [[ "${WALLSHIFT_CONFIGURE_HYPRLAND:-1}" != "1" ]]; then
     log "Skipping live Hyprland configuration by request."
     exit 0
@@ -101,14 +95,19 @@ fi
 
 [[ -n "${HOME:-}" && -d "$HOME" ]] || die "HOME is not set or does not exist."
 
-CONFIG_DIR="${HYPRLAND_CONFIG_DIR:-$HOME/.config/hypr}"
-MODULE_DIR="$CONFIG_DIR/modules"
-MAIN_CONFIG="$CONFIG_DIR/hyprland.lua"
-MODULE_FILE="$MODULE_DIR/wallshift.lua"
+# If Hyprland control tools are unavailable, leave the package staged and exit.
+if ! command -v hyprctl >/dev/null 2>&1; then
+    log "Hyprland was not detected; skipping configuration."
+    exit 0
+fi
 
+CONFIG_DIR="${HYPRLAND_CONFIG_DIR:-$HOME/.config/hypr}"
+MAIN_CONFIG="$CONFIG_DIR/hyprland.lua"
+MODULE_DIR="$CONFIG_DIR/modules"
+MODULE_FILE="$MODULE_DIR/wallshift.lua"
 mkdir -p "$MODULE_DIR"
 
-# Back up an existing config before changing it.
+# Back up the main config before editing it.
 if [[ -f "$MAIN_CONFIG" ]]; then
     if [[ ! -f "$MAIN_CONFIG.bak" ]]; then
         cp -a -- "$MAIN_CONFIG" "$MAIN_CONFIG.bak"
@@ -117,16 +116,15 @@ if [[ -f "$MAIN_CONFIG" ]]; then
         log "Preserving existing backup: $MAIN_CONFIG.bak"
     fi
 else
+    mkdir -p "$CONFIG_DIR"
     touch "$MAIN_CONFIG"
     cp -a -- "$MAIN_CONFIG" "$MAIN_CONFIG.bak"
     log "Created Hyprland Lua config and backup."
 fi
 
-install -m644 "$ROOT/modules/wallshift.lua" "$MODULE_FILE"
+install -m644 "$LUA_MODULE" "$MODULE_FILE"
 log "Installed Lua module: $MODULE_FILE"
 
-# Add a module require exactly once. This assumes your Lua framework loads
-# hyprland.lua and makes the `hl` object available to this file.
 IMPORT='require("modules.wallshift")'
 if ! grep -Fqx -- "$IMPORT" "$MAIN_CONFIG"; then
     printf '\n-- Wallshift wallpaper rotation\n%s\n' "$IMPORT" >> "$MAIN_CONFIG"
@@ -135,29 +133,7 @@ else
     log "Wallshift module import already exists."
 fi
 
-# Install the executable directly into the live user's ~/.local/bin as requested.
-install -Dm755 "$BUILD_DIR/wallshift" "$HOME/.local/bin/wallshift"
-log "Installed executable: $HOME/.local/bin/wallshift"
-
-# Install the bundled images into the live user's wallpaper directory without
-# overwriting same-named existing images.
-LIVE_WALLPAPERS="$HOME/Pictures/wallpapers"
-mkdir -p "$LIVE_WALLPAPERS"
-while IFS= read -r -d '' image_file; do
-    destination="$LIVE_WALLPAPERS/$(basename "$image_file")"
-    if [[ -e "$destination" ]]; then
-        log "Keeping existing wallpaper: $destination"
-    else
-        install -m644 "$image_file" "$destination"
-    fi
-done < <(find "$WALLPAPER_DIR" -maxdepth 1 -type f \
-    \( -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' \
-       -o -iname '*.webp' -o -iname '*.bmp' -o -iname '*.gif' \
-       -o -iname '*.tif' -o -iname '*.tiff' -o -iname '*.avif' \) \
-    -print0)
-
-# Reload only if this is an active Hyprland session.
-if [[ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]] && command -v hyprctl >/dev/null 2>&1; then
+if [[ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]]; then
     if hyprctl reload; then
         log "Hyprland configuration reloaded."
     else
@@ -167,5 +143,5 @@ else
     log "No active Hyprland session detected; changes apply next session."
 fi
 
-log "Wallshift build and installation completed."
+log "Wallshift build and staging completed."
 
