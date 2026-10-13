@@ -89,8 +89,8 @@ install -m755 "$BUILD_DIR/wallshift" "$STAGED_LOCAL_BIN/wallshift"
 
 log "Forge staging completed."
 log "Staged executable: $STAGED_LOCAL_BIN/wallshift"
-log "Staged Lua module: $STAGED_HYPR_MODULE"
-log "Staged wallpapers: $STAGED_USER_WALLPAPERS"
+log "Staged Lua module: $STAGED_DATA/modules/wallshift.lua"
+log "Staged bundled wallpapers: $STAGED_DATA/wallpapers"
 
 # Install into the live user's Hyprland setup, matching this package's requested
 # behavior. Set WALLSHIFT_CONFIGURE_HYPRLAND=0 to build/stage without live changes.
@@ -168,3 +168,4 @@ else
 fi
 
 log "Wallshift build and installation completed."
+
