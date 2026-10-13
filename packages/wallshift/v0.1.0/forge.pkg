@@ -1,0 +1,24 @@
+[package]
+name = "wallshift"
+version = "0.1.0"
+description = "Lightweight C++ wallpaper rotator for Wayland and Hyprland using awww"
+license = "MIT"
+
+[source]
+url = "https://github.com/ItzSevrus/ArchTools/releases/download/wallshift-v0.1.0/wallshift-v0.1.0.tar.gz"
+checksum = "sha256:ea977b5aedc763f3ce8b32f01a1b0e51d36b9c7d8f57292234c88faf9dc93854"
+
+[build]
+script = "build.sh"
+command = "./build.sh"
+compilers = []
+
+[dependencies]
+runtime = []
+build = []
+
+[dependencies.system]
+apt = ["cmake", "build-essential", "awww"]
+pacman = ["cmake", "base-devel", "awww"]
+dnf = ["cmake", "gcc-c++", "make", "awww"]
+zypper = ["cmake", "gcc-c++", "make", "awww"]
