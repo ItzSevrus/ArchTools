@@ -125,7 +125,7 @@ fi
 install -m644 "$LUA_MODULE" "$MODULE_FILE"
 log "Installed Lua module: $MODULE_FILE"
 
-IMPORT='local wallshift = require("modules.wallshift")\nwallshift.setup(hl)'
+IMPORT=$'local wallshift = require("modules.wallshift")\nwallshift.setup(hl)'
 if ! grep -Fqx -- "$IMPORT" "$MAIN_CONFIG"; then
     printf '\n-- Wallshift wallpaper rotation\n%s\n' "$IMPORT" >> "$MAIN_CONFIG"
     log "Added Wallshift module import to $MAIN_CONFIG"
