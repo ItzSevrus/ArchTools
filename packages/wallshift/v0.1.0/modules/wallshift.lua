@@ -1,13 +1,15 @@
-
 -- Wallshift integration for Hyprland Lua
--- Starts Wallshift when the Hyprland session starts.
 
 local wallshift = {}
 
 function wallshift.setup(hl)
+    local home = os.getenv("HOME")
+
     hl.on("hyprland.start", function()
-        -- Wallshift manages awww-daemon itself.
-        hl.exec_cmd("wallshift --shuffle --interval 10m &")
+        hl.exec_cmd(
+            "sh -lc '" .. home ..
+            "/.local/bin/wallshift --shuffle --interval 10m >> /tmp/wallshift.log 2>&1 &'"
+        )
     end)
 end
 

@@ -5,8 +5,8 @@ description = "Lightweight C++ wallpaper rotator for Wayland and Hyprland using 
 license = "MIT"
 
 [source]
-url = "https://github.com/ItzSevrus/ArchTools/releases/download/wallshift-v0.1.0/wallshift-v0.1.0.tar.gz"
-checksum = "sha256:ea977b5aedc763f3ce8b32f01a1b0e51d36b9c7d8f57292234c88faf9dc93854"
+url = "https://github.com/ItzSevrus/ArchTools/releases/download/wallshift-v0.1.0/wallshift-v0.1.0a.tar.gz"
+checksum = "sha256:6505550fb74174e6e44bfc1b4b228414d25962de77fc0948aeb4820f548ba354"
 
 [build]
 script = "build.sh"
